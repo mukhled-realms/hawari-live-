@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#050816">
+<title>حواري LIVE | مجالس اللعب</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root { --bg: #050816; --panel: #0c1427; --panel2: #111d35; --cyan: #19d7ff; --blue: #287bff; --green: #24e58b; --danger: #ff5263; --text: #f4f7ff; --muted: #8491aa; --border: #223355; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { min-height: 100vh; font-family: "Cairo", sans-serif; background: radial-gradient(circle at top, #122247 0, transparent 38%), var(--bg); color: var(--text); }
+button, input { font-family: inherit; }
+button { cursor: pointer; }
+.app { width: 100%; max-width: 520px; margin: auto; padding: 18px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+.logo { font-weight: 900; font-size: 26px; color: var(--cyan); }
+.logo span { color: white; }
+.online { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.online-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+.hero { margin-bottom: 22px; }
+.hero h1 { font-size: 27px; line-height: 1.5; }
+.hero h1 strong { color: var(--cyan); }
+.hero p { margin-top: 8px; color: var(--muted); font-size: 14px; line-height: 1.9; }
+.player-box { background: rgba(12, 20, 39, .86); border: 1px solid var(--border); border-radius: 20px; padding: 16px; margin-bottom: 20px; }
+.section-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.name-input { width: 100%; border-radius: 13px; border: 1px solid var(--border); background: #071022; color: white; padding: 14px; outline: none; font-size: 15px; }
+.name-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(25, 215, 255, .08); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 27px; }
+.btn { min-height: 55px; border: 0; border-radius: 15px; font-weight: 800; font-size: 14px; }
+.btn-primary { background: linear-gradient(135deg, var(--cyan), var(--blue)); color: #02101c; box-shadow: 0 8px 25px rgba(25, 215, 255, .15); }
+.btn-secondary { background: var(--panel2); color: white; border: 1px solid var(--border); }
+.btn:active { transform: scale(.98); }
+.rooms-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.rooms-title h2 { font-size: 18px; }
+.rooms-title span { color: var(--muted); font-size: 12px; }
+.rooms { display: flex; flex-direction: column; gap: 12px; }
+.room { position: relative; overflow: hidden; background: linear-gradient(135deg, rgba(17, 29, 53, .95), rgba(8, 16, 35, .96)); border: 1px solid var(--border); border-radius: 18px; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+.room::before { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: var(--cyan); }
+.room-name { font-weight: 800; margin-bottom: 4px; }
+.room-info { color: var(--muted); font-size: 12px; }
+.join { border: 1px solid rgba(25, 215, 255, .4); color: var(--cyan); background: rgba(25, 215, 255, .08); padding: 9px 14px; border-radius: 11px; font-weight: 800; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .70); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+.modal.show { display: flex; }
+.modal-card { width: 100%; max-width: 450px; background: #0b1428; border: 1px solid var(--border); border-radius: 22px; padding: 21px; }
+.modal-card h2 { margin-bottom: 5px; }
+.modal-card p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.status { margin-top: 25px; text-align: center; color: var(--muted); font-size: 11px; }
+@media (max-width: 380px) { .actions { grid-template-columns: 1fr; } .hero h1 { font-size: 23px; } }
+</style>
+</head>
+<body>
+<div class="app">
+<header class="header">
+<div class="logo">حواري <span>LIVE</span> 🔥</div>
+<div class="online"><div class="online-dot"></div><span id="onlineCount">متصل</span></div>
+</header>
+<section class="hero">
+<h1>المجلس مفتوح، <strong>والتحدي يبدأ هنا.</strong></h1>
+<p>ادخل مجلسك، قابل اللاعبين، سولف معهم، وبعدها اختاروا اللعبة وابدأوا التحدي.</p>
+</section>
+<section class="player-box">
+<label class="section-label" for="playerName">اسمك في الحواري</label>
+<input id="playerName" class="name-input" type="text" maxlength="20" autocomplete="nickname" placeholder="مثال: أبو محمد">
+</section>
+<div class="actions">
+<button class="btn btn-primary" id="createRoomBtn">＋ إنشاء مجلس</button>
+<button class="btn btn-secondary" id="refreshBtn">↻ تحديث المجالس</button>
+</div>
+<section>
+<div class="rooms-title">
+<h2>🏘️ المجالس المفتوحة</h2>
+<span id="roomCount">0 مجالس</span>
+</div>
+<div class="rooms" id="rooms">
+<div style="text-align:center; color:#8491aa; padding:30px 10px;">جارٍ البحث عن المجالس...</div>
+</div>
+</section>
+<div class="status">حواري LIVE • المرحلة الأولى</div>
+</div>
+<div class="modal" id="roomModal">
+<div class="modal-card">
+<h2>🔥 افتح مجلس جديد</h2>
+<p>سمّ المجلس وخل الربع يدخلون.</p>
+<label class="section-label" for="roomName">اسم المجلس</label>
+<input id="roomName" class="name-input" type="text" maxlength="30" placeholder="مثال: مجلس النسيم">
+<div class="modal-actions">
+<button class="btn btn-primary" id="confirmCreate">افتح المجلس</button>
+<button class="btn btn-secondary" id="cancelCreate">إلغاء</button>
+</div>
+</div>
+</div>
+<script>
+const playerInput = document.getElementById("playerName");
+const modal = document.getElementById("roomModal");
+const roomNameInput = document.getElementById("roomName");
+const savedName = localStorage.getItem("hawari_player_name");
+if (savedName) playerInput.value = savedName;
+playerInput.addEventListener("input", () => localStorage.setItem("hawari_player_name", playerInput.value.trim()));
+document.getElementById("createRoomBtn").addEventListener("click", () => {
+const playerName = playerInput.value.trim();
+if (!playerName) { alert("يا وحش 😄 اكتب اسمك أول."); playerInput.focus(); return; }
+modal.classList.add("show"); roomNameInput.focus();
+});
+document.getElementById("cancelCreate").addEventListener("click", () => modal.classList.remove("show"));
+document.getElementById("confirmCreate").addEventListener("click", () => {
+const playerName = playerInput.value.trim();
+const roomName = roomNameInput.value.trim();
+if (!roomName) { alert("اكتب اسم المجلس."); return; }
+const params = new URLSearchParams({ room: roomName, player: playerName });
+window.location.href = "room.html?" + params.toString();
+});
+document.getElementById("refreshBtn").addEventListener("click", () => console.log("سيتم ربط هذا الزر بـ Supabase."));
+</script>
+</body>
+</html>
