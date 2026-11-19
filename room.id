@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>مجلس | حواري LIVE</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root { --bg: #050816; --panel: #0c1427; --panel2: #111d35; --cyan: #19d7ff; --blue: #287bff; --green: #24e58b; --danger: #ff5263; --text: #f4f7ff; --muted: #8491aa; --border: #223355; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { min-height: 100vh; font-family: "Cairo", sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.header { background: var(--panel); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.room-info h1 { font-size: 18px; color: var(--cyan); }
+.room-info p { font-size: 12px; color: var(--muted); }
+.players { display: flex; gap: 5px; }
+.player-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.chat-container { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+.message { max-width: 80%; padding: 10px 14px; border-radius: 15px; font-size: 14px; line-height: 1.5; }
+.message .sender { font-size: 11px; font-weight: 700; color: var(--cyan); display: block; margin-bottom: 4px; }
+.message.mine { align-self: flex-end; background: var(--blue); color: white; border-bottom-right-radius: 2px; }
+.message.mine .sender { color: #a5c8ff; }
+.message.other { align-self: flex-start; background: var(--panel2); border: 1px solid var(--border); border-bottom-left-radius: 2px; }
+.message.system { align-self: center; background: transparent; color: var(--muted); font-size: 12px; text-align: center; padding: 5px; }
+.input-area { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid var(--border); }
+.chat-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: white; padding: 12px; border-radius: 10px; outline: none; font-family: inherit; }
+.chat-input:focus { border-color: var(--cyan); }
+.send-btn { background: var(--cyan); color: var(--bg); border: none; padding: 0 20px; border-radius: 10px; font-weight: 900; cursor: pointer; }
+.game-selector { background: var(--panel2); padding: 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); }
+.game-btn { background: var(--green); color: var(--bg); border: none; padding: 10px 20px; border-radius: 10px; font-weight: 900; cursor: pointer; }
+.game-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="room-info">
+    <h1 id="roomNameDisplay">جاري التحميل...</h1>
+    <p id="roomStatus">متصل</p>
+  </div>
+  <div class="players" id="playersList"></div>
+</header>
+
+<div class="chat-container" id="chatContainer">
+  <div class="message system">مرحباً بك في المجلس! 🎉</div>
+</div>
+
+<div class="game-selector">
+  <span>اللعبة الحالية: <strong id="currentGame">لا يوجد</strong></span>
+  <button class="game-btn" id="startGameBtn">🃏 ابدأ كابليوت</button>
+</div>
+
+<div class="input-area">
+  <input type="text" id="chatInput" class="chat-input" placeholder="اكتب رسالتك هنا..." maxlength="300">
+  <button class="send-btn" id="sendBtn">إرسال</button>
+</div>
+
+<script src="config.js"></script>
+<script>
+// جلب بيانات الرابط
+const urlParams = new URLSearchParams(window.location.search);
+const roomName = urlParams.get('room') || 'مجلس تجريبي';
+const playerName = urlParams.get('player') || 'لاعب';
+const roomSlug = roomName.replace(/\s+/g, '-');
+const playerId = localStorage.getItem('hawari_player_id') || Math.random().toString(36).substr(2, 9);
+localStorage.setItem('hawari_player_id', playerId);
+
+document.getElementById('roomNameDisplay').textContent = roomName;
+
+// إعداد Supabase
+if (typeof db === 'undefined') {
+    document.getElementById('chatContainer').innerHTML = '<div class="message system" style="color: red;">خطأ: لم يتم تحميل config.js أو الاتصال بـ Supabase.</div>';
+} else {
+    initRoom();
+}
+
+async function initRoom() {
+    try {
+        // 1. إنشاء الغرفة إذا لم تكن موجودة
+        let { data: room, error } = await db.from('rooms').select('*').eq('slug', roomSlug).single();
+        
+        if (error && error.code === 'PGRST116') {
+            // الغرفة غير موجودة، نقوم بإنشائها
+            const { data: newRoom, error: createError } = await db.from('rooms').insert([{
+                name: roomName, slug: roomSlug, host_id: playerId, host_name: playerName, status: 'lobby'
+            }]).select().single();
+            if (createError) throw createError;
+            room = newRoom;
+        } else if (error) {
+            throw error;
+        }
+
+        // 2. إعداد Realtime للرسائل
+        const channel = db.channel('room-chat-' + room.id)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${room.id}` }, payload => {
+                addMessageToUI(payload.new);
+            })
+            .subscribe();
+
+        // 3. تحميل الرسائل السابقة
+        const { data: messages } = await db.from('messages').select('*').eq('room_id', room.id).order('created_at', { ascending: true });
+        if (messages) {
+            document.getElementById('chatContainer').innerHTML = '<div class="message system">مرحباً بك في المجلس! 🎉</div>';
+            messages.forEach(addMessageToUI);
+        }
+
+        // 4. إعداد Realtime للاعبين (Presence)
+        const presenceChannel = db.channel('room-presence-' + room.id);
+        presenceChannel
+            .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                const players = Object.values(state).flat();
+                updatePlayersUI(players);
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await presenceChannel.track({ player_id: playerId, player_name: playerName });
+                }
+            });
+
+        // 5. أحداث الإرسال
+        document.getElementById('sendBtn').addEventListener('click', () => sendMessage(room.id));
+        document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(room.id); });
+
+        // 6. حدث زر بدء اللعبة
+        document.getElementById('startGameBtn').addEventListener('click', async () => {
+            const { error } = await db.from('rooms').update({ selected_game: 'baloot', selected_game_name: 'كابليوت الحارة', selected_game_icon: '🃏' }).eq('id', room.id);
+            if (error) alert('خطأ في بدء اللعبة');
+            else alert('تم اختيار كابليوت! (سيتم برمجة اللعبة في المرحلة القادمة)');
+        });
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById('chatContainer').innerHTML += `<div class="message system" style="color: red;">خطأ: ${err.message}</div>`;
+    }
+}
+
+function addMessageToUI(msg) {
+    const container = document.getElementById('chatContainer');
+    const isMine = msg.player_id === playerId;
+    const div = document.createElement('div');
+    div.className = `message ${isMine ? 'mine' : 'other'} ${msg.message_type === 'system' ? 'system' : ''}`;
+    
+    if (msg.message_type !== 'system') {
+        div.innerHTML = `<span class="sender">${msg.player_name}</span>${msg.message}`;
+    } else {
+        div.textContent = msg.message;
+    }
+    
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage(roomId) {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const { error } = await db.from('messages').insert([{
+        room_id: roomId,
+        player_id: playerId,
+        player_name: playerName,
+        message: text,
+        message_type: 'chat'
+    }]);
+
+    if (error) {
+        console.error('Error sending message:', error);
+        alert('فشل إرسال الرسالة. تأكد من إعدادات Supabase.');
+    }
+}
+
+function updatePlayersUI(players) {
+    const list = document.getElementById('playersList');
+    list.innerHTML = '';
+    const count = players.length;
+    document.getElementById('roomStatus').textContent = `${count} لاعب متصل`;
+    
+    players.forEach(p => {
+        const dot = document.createElement('div');
+        dot.className = 'player-dot';
+        dot.title = p.player_name;
+        list.appendChild(dot);
+    });
+}
+</script>
+</body>
+</html>
